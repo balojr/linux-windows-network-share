@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=LAN Share
+GenericName=Windows File Sharing
+Comment=Share folders with Windows PCs and open Windows shares on this computer
+Exec=lan-share gui
+Icon=network-workgroup
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=samba;smb;windows;share;network;

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Privileged entry point for the lan-share GUI. Run via pkexec (see the polkit policy), never directly.
+# Starts Python in isolated mode with a clean environment; the helper accepts only a fixed set of commands.
+exec /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 \
+    python3 -I -B -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from lan_share.helper import main; raise SystemExit(main())' \
+    "@LIBDIR@" "$@"
