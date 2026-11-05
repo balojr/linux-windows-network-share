@@ -1,4 +1,4 @@
-# linux-windows-network-access (`lan-share`)
+# linux-windows-network-share (`lan-share`)
 
 Make a Linux computer show up in **Windows Explorer's Network tab** and serve files to Windows, and open **Windows shared folders on Linux** — on mainstream systemd distributions, from a command line or a small desktop app.
 
@@ -70,13 +70,35 @@ lan-share doctor
 
 ## Install
 
-Download from the [Releases](https://github.com/balojr/linux-windows-network-access/releases) page. Each release has a `SHA256SUMS` file; verify with `sha256sum -c SHA256SUMS`. The packages are **unsigned**.
+### One-line install
+
+```bash
+curl -fsSL https://github.com/balojr/linux-windows-network-share/releases/latest/download/get.sh | sh
+```
+
+[`get.sh`](get.sh) finds the latest release, picks the package for your distribution (`.deb`, `.rpm` or Arch package; the source tarball on anything else), **verifies its SHA-256 checksum**, and installs it with your package manager. It runs as your normal user and uses `sudo` only for the final install step. It installs the package and **nothing else**: it never runs `lan-share setup --apply`, so you still preview and approve what changes on your system.
+
+Piping a download into a shell means trusting what the URL serves, so if you prefer to read it first:
+
+```bash
+curl -fsSLO https://github.com/balojr/linux-windows-network-share/releases/latest/download/get.sh
+less get.sh                 # it is about 140 lines of plain sh
+sh get.sh --dry-run         # shows the exact package and install command, changes nothing
+sh get.sh                   # install
+```
+
+Options: `--dry-run`, `--tarball` (use the source tarball and `packaging/install.sh` even on a distro with a native package), `--version X.Y.Z` (or `LAN_SHARE_VERSION=X.Y.Z`). Needs `curl` (or `wget` together with `--version`), `tar`, `sha256sum`, and root or `sudo`.
+The checksum comes from the same release as the package, so it catches corrupt or partial downloads, not a compromised release; the packages are unsigned.
+
+### Manual download
+
+Download from the [Releases](https://github.com/balojr/linux-windows-network-share/releases) page. Each release has a `SHA256SUMS` file; verify with `sha256sum -c SHA256SUMS`. The packages are **unsigned**.
 
 | Distribution | File | Command |
 |---|---|---|
 | Debian, Ubuntu, Mint… | `lan-share_<ver>_all.deb` | `sudo apt install ./lan-share_<ver>_all.deb` |
 | Fedora, RHEL / Rocky / Alma | `lan-share-<ver>-1.noarch.rpm` | `sudo dnf install ./lan-share-<ver>-1.noarch.rpm` |
-| openSUSE | the same `.rpm` | `sudo zypper --no-gpg-checks install ./lan-share-<ver>-1.noarch.rpm` |
+| openSUSE | the same `.rpm` | `sudo zypper install --allow-unsigned-rpm ./lan-share-<ver>-1.noarch.rpm` |
 | Arch, Manjaro… | `lan-share-<ver>-1-any.pkg.tar.zst` | `sudo pacman -U ./lan-share-<ver>-1-any.pkg.tar.zst` |
 | Anything else | `lan-share-<ver>.tar.gz` | `tar xzf …; cd lan-share-<ver>; sudo ./packaging/install.sh install` |
 
@@ -235,7 +257,7 @@ sudo apt remove lan-share          # or: dnf remove / pacman -R / zypper remove 
 ## Development
 
 ```bash
-git clone https://github.com/balojr/linux-windows-network-access.git && cd linux-windows-network-access
+git clone https://github.com/balojr/linux-windows-network-share.git && cd linux-windows-network-share
 export PYTHONPATH=src
 python3 -m lan_share detect            # run from the checkout, no install
 python3 -m unittest discover -s tests  # 75 tests (GUI tests need GTK 4 + libadwaita + gtk4-broadwayd; they skip otherwise)
