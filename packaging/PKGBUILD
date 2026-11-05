@@ -1,0 +1,18 @@
+# Maintainer: lan-share contributors
+pkgname=lan-share
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Show this machine in Windows' Network tab and mount Windows shares"
+arch=('any')
+license=('MIT')
+depends=('python')
+optdepends=('samba: file sharing server' 'avahi: mDNS names' 'cifs-utils: mount Windows shares' 'python-gobject: graphical interface' 'gtk4: graphical interface' 'libadwaita: graphical interface' 'polkit: authorization prompts in the graphical interface')
+# For the AUR, replace with the release URL and a real checksum.
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  DESTDIR="$pkgdir" PREFIX=/usr ./packaging/install.sh install
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

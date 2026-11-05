@@ -1,0 +1,3 @@
+#!/bin/sh
+# lan-share launcher (the library path below is substituted at install time).
+PYTHONPATH="@LIBDIR@${PYTHONPATH:+:$PYTHONPATH}" exec python3 -B -m lan_share "$@"
