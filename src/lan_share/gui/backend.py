@@ -122,11 +122,17 @@ class Backend:
             raise BackendError(out.message)
         return out
 
-    def add_share(self, name: str, path: str, users: list[str], read_write: bool) -> Outcome:
+    def add_share(self, name: str, path: str, users: list[str], read_write: bool, allow_run: bool = False) -> Outcome:
         args = ["share", "add", name, path, "--apply"]
         for u in users:
             args += ["--user", u]
-        return self._must(self.call(args + (["--rw"] if read_write else []), root=True))
+        args += ["--rw"] if read_write else []
+        args += ["--allow-run"] if allow_run else []
+        return self._must(self.call(args, root=True))
+
+    def set_share_allow_run(self, name: str, allow_run: bool) -> Outcome:
+        flag = "--allow-run" if allow_run else "--no-allow-run"
+        return self._must(self.call(["share", "set", name, flag, "--apply"], root=True))
 
     def remove_share(self, name: str) -> Outcome:
         return self._must(self.call(["share", "remove", name, "--apply"], root=True))

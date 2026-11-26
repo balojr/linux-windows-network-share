@@ -86,6 +86,20 @@ class ConfigTests(unittest.TestCase):
                 s.validate()
         config.Share("Media 1", "/srv/media", ["bob", "amy"]).validate()
 
+    def test_old_config_without_allow_run_still_loads_and_defaults_to_off(self):
+        with tempfile.TemporaryDirectory() as d:
+            ctx = Context(root=Path(d))
+            p = ctx.path(config.CONFIG_PATH)
+            p.parent.mkdir(parents=True)
+            p.write_text(json.dumps({"shares": [{"name": "old", "path": "/srv/old", "users": ["bob"], "read_only": False}]}))
+            cfg = config.load(ctx)
+            self.assertFalse(cfg.shares[0].allow_run)
+            cfg.get_share("OLD").allow_run = True
+            config.save(ctx, cfg)
+            self.assertTrue(config.load(ctx).shares[0].allow_run)
+            with self.assertRaises(LanShareError):
+                cfg.get_share("missing")
+
     def test_duplicates_and_roundtrip(self):
         with tempfile.TemporaryDirectory() as d:
             ctx = Context(root=Path(d))
@@ -117,6 +131,16 @@ class SambaTests(unittest.TestCase):
         ]:
             self.assertIn(needle, out)
         self.assertNotIn("guest ok = yes", out)
+
+    def test_allow_run_adds_the_samba_execute_setting_only_when_asked(self):
+        cfg = config.Config()
+        cfg.add_share(config.Share("plain", "/srv/a", ["bob"]))
+        cfg.add_share(config.Share("tools", "/srv/b", ["bob"], read_only=False, allow_run=True))
+        out = samba.render(cfg, self.LAN)
+        plain, tools = out.split("[tools]")[0], out.split("[tools]")[1]
+        self.assertNotIn("acl allow execute always", plain)
+        self.assertIn("acl allow execute always = yes", tools)
+        self.assertEqual(out.count("acl allow execute always"), 1)
 
     def test_include_is_idempotent_and_backs_up(self):
         with tempfile.TemporaryDirectory() as d:
@@ -252,6 +276,44 @@ class WsddServiceTests(unittest.TestCase):
             self.assertTrue(installed.stat().st_mode & 0o111)
             self.assertIn("-i wlp3s0", ctx.path(W.UNIT_PATH).read_text())
             self.assertNotIn("v0.8\n" + "#!/usr", plan.render())  # file body is never dumped into the plan
+
+
+class ShareCommandTests(unittest.TestCase):
+    """The real CLI entry point against a staged root (nothing on the real system is touched)."""
+
+    def run_cli(self, root, *args):
+        import contextlib
+        import io
+
+        from lan_share import cli
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = cli.main(["--root", str(root), *args])
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_add_with_allow_run_then_toggle_with_set(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "etc").mkdir()
+            self.assertEqual(self.run_cli(d, "share", "add", "dl", "/tmp", "--user", "alice", "--rw", "--allow-run")[0], 0)
+            self.assertIn("rw,run", self.run_cli(d, "share", "list")[1])
+            self.assertTrue(json.loads(self.run_cli(d, "share", "list", "--json")[1])[0]["allow_run"])
+            self.assertEqual(self.run_cli(d, "share", "set", "dl", "--no-allow-run")[0], 0)
+            self.assertFalse(json.loads(self.run_cli(d, "share", "list", "--json")[1])[0]["allow_run"])
+            self.assertEqual(self.run_cli(d, "share", "set", "dl", "--allow-run")[0], 0)
+            self.assertTrue(json.loads(self.run_cli(d, "share", "list", "--json")[1])[0]["allow_run"])
+            self.assertIn("acl allow execute always = yes", self.run_cli(d, "render")[1])
+
+    def test_set_refuses_nothing_to_change_and_unknown_shares(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "etc").mkdir()
+            self.run_cli(d, "share", "add", "dl", "/tmp", "--user", "alice")
+            rc, _, err = self.run_cli(d, "share", "set", "dl")
+            self.assertEqual(rc, 1)
+            self.assertIn("nothing to change", err)
+            rc, _, err = self.run_cli(d, "share", "set", "nope", "--allow-run")
+            self.assertEqual(rc, 1)
+            self.assertIn("no such share", err)
 
 
 class ExecuteTests(unittest.TestCase):

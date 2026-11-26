@@ -13,7 +13,10 @@ from lan_share.gui.backend import BackendError  # noqa: E402
 
 class FakeBackend:
     def __init__(self, fail_scan=False):
-        self.calls, self.fail_scan = [], fail_scan
+        self.calls, self.fail_scan, self.set_fails = [], fail_scan, False
+        # like the real backend, the saved state persists between calls
+        self._shares = [{"name": "Docs", "path": "/srv/docs", "users": ["bob"], "read_only": True, "allow_run": False},
+                        {"name": "Tools", "path": "/srv/tools", "users": ["bob"], "read_only": False, "allow_run": True}]
 
     def doctor(self, root=False):
         self.calls.append(("doctor", root))
@@ -23,7 +26,7 @@ class FakeBackend:
                 {"status": "warn", "name": "SMB signing is not required", "detail": "", "fix": "sudo lan-share setup --apply"}]
 
     def shares(self):
-        return [{"name": "Docs", "path": "/srv/docs", "users": ["bob"], "read_only": True}]
+        return [dict(s) for s in self._shares]
 
     def mounts(self):
         return [{"name": "pc-games", "host": "192.168.1.50", "share": "Games", "user": "ADMIN", "local_user": "bob",
@@ -42,6 +45,14 @@ class FakeBackend:
 
     def add_share(self, *a): self.calls.append(("add_share", *a))
     def remove_share(self, n): self.calls.append(("remove_share", n))
+
+    def set_share_allow_run(self, name, allow):
+        self.calls.append(("set_share_allow_run", name, allow))
+        if self.set_fails:
+            raise BackendError("authorization was cancelled or denied")
+        for s in self._shares:
+            if s["name"] == name:
+                s["allow_run"] = allow
     def set_samba_password(self, u, p): self.calls.append(("set_samba_password", u, p))
     def add_mount(self, *a): self.calls.append(("add_mount", *a))
     def remove_mount(self, n): self.calls.append(("remove_mount", n))
@@ -77,6 +88,8 @@ def main():
         report["mount_rows"] = [(r.get_title(), r.get_subtitle()) for r in win.windows.mount_rows]
         report["status_rows"] = [(r.get_title(), r.get_subtitle()) for r in win.status.rows]
         report["status_summary"] = win.status.summary.get_description()
+        report["toggle_states"] = {n: sw.get_active() for n, sw in win.sharing.toggles.items()}
+        report["calls_after_load"] = [list(c) for c in be.calls]  # building the rows must not have changed anything
         report["pages"] = [win.stack.get_page(p).get_title() for p in (win.sharing, win.windows, win.status)]
 
         win.windows.scan(); pump(800)
@@ -92,6 +105,13 @@ def main():
         win.windows.do_login(host, "ADMIN", "wrong"); pump(300)                    # failure -> toast
         win.windows.do_mount(host, "ADMIN", "pw", "Games", "pc-games2"); pump(300)
         win.windows.do_unmount("pc-games"); pump(300)
+        win.sharing.do_add("Tools2", "/srv/t2", "bob", False, True); pump(300)      # allow_run passed through
+        win.sharing.toggles["Docs"].set_active(True); pump(400)                      # the user flips a switch on
+        report["toggle_after_success"] = win.sharing.toggles["Docs"].get_active()
+        be.set_fails = True
+        win.sharing.toggles["Tools"].set_active(False); pump(600)                    # ... and the change is refused
+        report["toggle_after_refusal"] = win.sharing.toggles["Tools"].get_active()  # must be back to the saved state: on
+        be.set_fails = False
         win.status.refresh(root=True); pump(500)
 
         # dialogs must at least construct and present without raising

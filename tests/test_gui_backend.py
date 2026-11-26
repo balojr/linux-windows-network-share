@@ -46,6 +46,21 @@ class BackendTests(unittest.TestCase):
         tail = argv[argv.index("share"):]
         self.assertEqual(tail, ["share", "add", "Docs", "/srv/docs", "--apply", "--user", "bob", "--user", "amy", "--rw"])
 
+    def test_allow_run_arguments(self):
+        r = Recorder()
+        b = Backend(run=r, elevate=["pkexec"])
+        b.add_share("Tools", "/srv/t", ["bob"], True, True)
+        b.add_share("Plain", "/srv/p", ["bob"], False)
+        b.set_share_allow_run("Tools", True)
+        b.set_share_allow_run("Tools", False)
+        tails = [argv[argv.index("share"):] for argv, _ in r.calls]
+        self.assertEqual(tails, [
+            ["share", "add", "Tools", "/srv/t", "--apply", "--user", "bob", "--rw", "--allow-run"],
+            ["share", "add", "Plain", "/srv/p", "--apply", "--user", "bob"],      # off by default: flag absent
+            ["share", "set", "Tools", "--allow-run", "--apply"],
+            ["share", "set", "Tools", "--no-allow-run", "--apply"],
+        ])
+
     def test_doctor_exit_1_is_not_an_error_but_other_codes_are(self):
         data = [{"status": "fail", "name": "x"}]
         self.assertEqual(Backend(run=Recorder(rc=1, out=json.dumps(data))).doctor(), data)

@@ -20,6 +20,9 @@ ALLOWED = [
     ["setup", "--apply"],
     ["share", "add", "Docs", "/srv/docs", "--apply", "--user", "bob", "--user", "amy", "--rw"],
     ["share", "add", "Docs", "/srv/docs", "--apply", "--user", "bob"],
+    ["share", "add", "Docs", "/srv/docs", "--apply", "--user", "bob", "--rw", "--allow-run"],
+    ["share", "set", "Docs", "--allow-run", "--apply"],
+    ["share", "set", "Docs", "--no-allow-run", "--apply"],
     ["share", "remove", "Docs", "--apply"],
     ["user", "add", "bob", "--password-stdin"],
     ["mount", "add", "pc", "//10.0.0.5/Docs", "--user", "ADMIN", "--local-user", "bob", "--password-stdin"],
@@ -40,6 +43,12 @@ REJECTED = [
     ["share", "add", "--rw", "/srv/docs", "--apply", "--user", "b"],  # flag where a positional belongs
     ["share", "add", "Docs", "/srv/docs", "--apply", "--user", "--rw"],  # option value that looks like a flag
     ["share", "add", "Docs", "/srv/docs", "--apply", "--user", "bob", "--evil"],
+    ["share", "set", "Docs", "--apply"],                          # neither option: nothing to change
+    ["share", "set", "Docs", "--allow-run", "--no-allow-run", "--apply"],  # contradictory
+    ["share", "set", "Docs", "--allow-run"],                      # missing --apply
+    ["share", "set", "Docs", "--rw", "--allow-run", "--apply"],   # options set does not offer
+    ["share", "set", "--allow-run", "--apply"],                   # no share name
+    ["share", "set", "-x", "--allow-run", "--apply"],
     ["share", "remove", "-x", "--apply"],
     ["user", "add", "bob"],                                       # interactive password prompt: never as root via GUI
     ["mount", "add", "pc", "//h/s", "--user", "a", "--local-user", "b"],  # missing --password-stdin
@@ -70,6 +79,9 @@ class WhitelistTests(unittest.TestCase):
         b = Backend(run=run, helper="/usr/lib/lan-share/lan-share-helper")
         b.add_share("Docs", "/srv/docs", ["bob", "amy"], True)
         b.add_share("Docs", "/srv/docs", ["bob"], False)
+        b.add_share("Docs", "/srv/docs", ["bob"], True, True)
+        b.set_share_allow_run("Docs", True)
+        b.set_share_allow_run("Docs", False)
         b.remove_share("Docs")
         b.apply()
         b.set_samba_password("bob", "pw")
@@ -77,7 +89,7 @@ class WhitelistTests(unittest.TestCase):
         b.add_mount("pc", "10.0.0.5", "Docs", "ADMIN", "pw", "CORP")
         b.remove_mount("pc")
         b.doctor(root=True)
-        self.assertEqual(len(sent), 9)
+        self.assertEqual(len(sent), 12)
         for argv in sent:
             self.assertTrue(argv[0].endswith("pkexec"))
             self.assertEqual(argv[1], "/usr/lib/lan-share/lan-share-helper")

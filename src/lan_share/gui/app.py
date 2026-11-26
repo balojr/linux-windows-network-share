@@ -128,6 +128,7 @@ class SharePage(Page):
         self.group.set_header_suffix(add_btn)
         self.add(self.group)
         self.rows: list = []
+        self.toggles: dict[str, Gtk.Switch] = {}  # share name -> its "allow running programs" switch
         self.refresh()
 
     def refresh(self) -> None:
@@ -135,6 +136,7 @@ class SharePage(Page):
 
     def _show(self, shares, error) -> None:
         clear(self.group, self.rows)
+        self.toggles.clear()
         if error:
             return self.fail(error)
         if not shares:
@@ -145,6 +147,18 @@ class SharePage(Page):
             mode = "read-only" if s["read_only"] else "read & write"
             row = Adw.ActionRow(title=esc(s["name"]), subtitle=esc(f"{s['path']}  ·  {mode}  ·  users: {', '.join(s['users'])}"))
             row.add_prefix(Gtk.Image.new_from_icon_name("folder-publicshare-symbolic"))
+            # the switch is created off, set to the saved state, and only then wired up, so building the row never triggers a change
+            toggle = Gtk.Switch(valign=Gtk.Align.CENTER, tooltip_text="Allow Windows to run programs (.exe, .msi) from this folder")
+            toggle.set_active(bool(s.get("allow_run")))
+            toggle.connect("notify::active", lambda sw, _p, n=s["name"]: self.do_set_allow_run(n, sw.get_active()))
+            label = Gtk.Label(label="Run programs", valign=Gtk.Align.CENTER)
+            label.add_css_class("dim-label")
+            label.add_css_class("caption")
+            switch_box = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER, tooltip_text=toggle.get_tooltip_text())
+            switch_box.append(label)
+            switch_box.append(toggle)
+            row.add_suffix(switch_box)
+            self.toggles[s["name"]] = toggle
             pw = Gtk.Button(icon_name="dialog-password-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Set the Samba password")
             pw.add_css_class("flat")
             pw.connect("clicked", lambda _b, u=s["users"][0]: self.password_dialog(u))
@@ -162,6 +176,7 @@ class SharePage(Page):
         users = Adw.EntryRow(title="Allowed users (space separated)")
         users.set_text(getpass.getuser())
         rw = Adw.SwitchRow(title="Allow changes", subtitle="Windows may create, edit and delete files")
+        run = Adw.SwitchRow(title="Allow running programs", subtitle="Windows may run .exe and .msi files from this folder (off is safer)")
         folder = Adw.ActionRow(title="Folder", subtitle="Choose a folder…", activatable=True)
         folder.add_suffix(Gtk.Image.new_from_icon_name("folder-open-symbolic"))
         chosen: dict[str, str] = {}
@@ -181,7 +196,7 @@ class SharePage(Page):
 
         box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         box.add_css_class("boxed-list")
-        for w in (folder, name, users, rw):
+        for w in (folder, name, users, rw, run):
             box.append(w)
         dlg = Adw.AlertDialog(heading="Share a folder", body="It becomes visible to Windows PCs on your network.")
         dlg.set_extra_child(box)
@@ -192,17 +207,23 @@ class SharePage(Page):
         def on_response(_d, resp):
             if resp != "add":
                 return
-            self.do_add(name.get_text(), chosen.get("path", ""), users.get_text(), rw.get_active())
+            self.do_add(name.get_text(), chosen.get("path", ""), users.get_text(), rw.get_active(), run.get_active())
         dlg.connect("response", on_response)
         dlg.present(self.win)
 
-    def do_add(self, name: str, path: str, users_text: str, read_write: bool) -> None:
+    def do_add(self, name: str, path: str, users_text: str, read_write: bool, allow_run: bool = False) -> None:
         name, users = name.strip(), users_text.split()
         if not path or not name or not users:
             return self.win.toast("Choose a folder, give the share a name, and list who may open it.", error=True)
         self.win.busy("Sharing folder — you may be asked for your password…")
-        in_background(lambda: self.backend.add_share(name, path, users, read_write),
+        in_background(lambda: self.backend.add_share(name, path, users, read_write, allow_run),
                       lambda _r, err: self._changed(err, f"Sharing “{name}”. Now set a Samba password (key icon)."))
+
+    def do_set_allow_run(self, name: str, allow_run: bool) -> None:
+        self.win.busy("Updating share — you may be asked for your password…")
+        in_background(lambda: self.backend.set_share_allow_run(name, allow_run),
+                      lambda _r, err: self._changed(err, f"Windows can now run programs from “{name}”." if allow_run
+                                                    else f"Windows can no longer run programs from “{name}”."))
 
     def confirm_remove(self, name: str) -> None:
         dlg = Adw.AlertDialog(heading=f"Stop sharing “{name}”?", body="The folder and its files stay where they are.")
@@ -219,7 +240,9 @@ class SharePage(Page):
     def _changed(self, error, message: str) -> None:
         self.win.idle()
         if error:
-            return self.fail(error)
+            self.fail(error)
+            self.refresh()  # reload the saved state, so a switch the user flipped snaps back when the change did not happen
+            return
         self.win.toast(message)
         self.refresh()
         self.win.status.refresh()

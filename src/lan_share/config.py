@@ -29,6 +29,9 @@ class Share:
     path: str
     users: list[str]
     read_only: bool = True
+    # Let Windows run programs (.exe/.msi) from this share even though the files lack Linux's execute bit.
+    # Off by default: without it Samba refuses to "open for execute" and Windows says "no permission".
+    allow_run: bool = False
 
     def validate(self) -> None:
         if not _NAME_RE.match(self.name) or self.name.lower() in _RESERVED_NAMES:
@@ -118,6 +121,12 @@ class Config:
         if any(s.name.lower() == share.name.lower() for s in self.shares):
             raise LanShareError(f"share {share.name!r} already exists")
         self.shares.append(share)
+
+    def get_share(self, name: str) -> "Share":
+        for s in self.shares:
+            if s.name.lower() == name.lower():
+                return s
+        raise LanShareError(f"no such share {name!r}")
 
     def remove_share(self, name: str) -> None:
         before = len(self.shares)

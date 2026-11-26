@@ -48,6 +48,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(r["pages"], ["Share", "Windows PCs", "Health"])
         self.assertEqual(r["share_rows"][0][0], "Docs")
         self.assertIn("read-only", r["share_rows"][0][1])
+        self.assertEqual(r["share_rows"][1][0], "Tools")  # the run-programs state is shown by the labelled switch (see test_run_programs_switch)
         self.assertEqual(r["mount_rows"][0][0], "pc-games")
         self.assertEqual(r["found_rows"][0][0], "DESKTOP-X")
 
@@ -65,12 +66,15 @@ class GuiTests(unittest.TestCase):
     def test_actions_call_the_backend_with_the_right_arguments(self):
         calls = [tuple(c) for c in self.r["calls"] if c[0] != "doctor"]
         self.assertEqual(calls, [
-            ("add_share", "Photos", "/srv/photos", ["bob", "amy"], True),
+            ("add_share", "Photos", "/srv/photos", ["bob", "amy"], True, False),
             ("remove_share", "Docs"),
             ("set_samba_password", "bob", "s3cret"),
             ("remote_shares", "192.168.1.50", "ADMIN", "wrong"),
             ("add_mount", "pc-games2", "192.168.1.50", "Games", "ADMIN", "pw"),
             ("remove_mount", "pc-games"),
+            ("add_share", "Tools2", "/srv/t2", ["bob"], False, True),
+            ("set_share_allow_run", "Docs", True),
+            ("set_share_allow_run", "Tools", False),
         ])
         self.assertIn(["doctor", True], self.r["calls"])  # "Full check" asks for the privileged run
 
@@ -81,6 +85,14 @@ class GuiTests(unittest.TestCase):
         self.assertIn("NT_STATUS_LOGON_FAILURE", errors)
         self.assertFalse(any(c[0] == "add_share" and c[1] == "" for c in self.r["calls"]))
         self.assertEqual(sum(1 for c in self.r["calls"] if c[0] == "set_samba_password"), 1)
+
+    def test_run_programs_switch(self):
+        r = self.r
+        self.assertEqual(r["toggle_states"], {"Docs": False, "Tools": True})   # initial state mirrors the saved config
+        self.assertEqual([c for c in r["calls_after_load"] if c[0] != "doctor"], [])  # building the rows changed nothing
+        self.assertTrue(r["toggle_after_success"])
+        self.assertTrue(r["toggle_after_refusal"], "a refused change must flip the switch back to what is really saved")
+        self.assertIn("authorization was cancelled or denied", [m for m, e in r["toasts"] if e])
 
     def test_scan_failure_is_reported_and_button_recovers(self):
         f = self.r["scan_fail"]

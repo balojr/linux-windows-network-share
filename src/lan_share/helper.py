@@ -17,7 +17,10 @@ from . import LanShareError
 _SHAPES: dict[tuple[str, ...], tuple[int, dict[str, tuple[bool, bool, bool]]]] = {
     ("doctor",): (0, {"--json": (False, True, False)}),
     ("setup",): (0, {"--apply": (False, True, False)}),
-    ("share", "add"): (2, {"--apply": (False, True, False), "--user": (True, True, True), "--rw": (False, False, False)}),
+    ("share", "add"): (2, {"--apply": (False, True, False), "--user": (True, True, True), "--rw": (False, False, False),
+                           "--allow-run": (False, False, False)}),
+    ("share", "set"): (1, {"--apply": (False, True, False), "--allow-run": (False, False, False),
+                           "--no-allow-run": (False, False, False)}),
     ("share", "remove"): (1, {"--apply": (False, True, False)}),
     ("user", "add"): (1, {"--password-stdin": (False, True, False)}),
     ("mount", "add"): (2, {"--user": (True, True, False), "--local-user": (True, True, False),
@@ -55,6 +58,8 @@ def validate(argv: list[str]) -> list[str]:
     missing = [f for f, (_v, required, _r) in flags.items() if required and f not in seen]
     if missing:
         raise LanShareError(f"missing required option(s): {', '.join(missing)}")
+    if words == ("share", "set") and ("--allow-run" in seen) == ("--no-allow-run" in seen):
+        raise LanShareError("give exactly one of --allow-run / --no-allow-run")
     return argv
 
 

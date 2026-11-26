@@ -95,7 +95,18 @@ def cmd_share_add(args: argparse.Namespace) -> None:
     path = str(Path(args.path).expanduser().resolve())
     if not Path(path).is_dir() and ctx.real:
         raise LanShareError(f"not a directory: {path}")
-    cfg.add_share(cfgmod.Share(args.name, path, args.user, read_only=not args.rw))
+    cfg.add_share(cfgmod.Share(args.name, path, args.user, read_only=not args.rw, allow_run=args.allow_run))
+    saved = cfgmod.save(ctx, cfg)
+    _finish_share_change(args, saved)
+
+
+def cmd_share_set(args: argparse.Namespace) -> None:
+    ctx = _ctx(args)
+    cfg = cfgmod.load(ctx)
+    share = cfg.get_share(args.name)
+    if args.allow_run is None:
+        raise LanShareError("nothing to change: pass --allow-run or --no-allow-run")
+    share.allow_run = args.allow_run
     saved = cfgmod.save(ctx, cfg)
     _finish_share_change(args, saved)
 
@@ -116,7 +127,8 @@ def cmd_share_list(args: argparse.Namespace) -> None:
     if not cfg.shares:
         print("no shares configured")
     for s in cfg.shares:
-        print(f"{s.name}\t{s.path}\t{'ro' if s.read_only else 'rw'}\t{','.join(s.users)}")
+        flags = "ro" if s.read_only else "rw"
+        print(f"{s.name}\t{s.path}\t{flags}{',run' if s.allow_run else ''}\t{','.join(s.users)}")
 
 
 def cmd_user_add(args: argparse.Namespace) -> None:
@@ -287,8 +299,17 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("path")
     a.add_argument("--user", action="append", required=True, help="Linux user allowed in (repeatable)")
     a.add_argument("--rw", action="store_true", help="read-write (default: read-only)")
+    a.add_argument("--allow-run", action="store_true",
+                   help="let Windows run programs (.exe/.msi) from this share (off by default)")
     a.add_argument("--apply", action="store_true", help="also run `setup --apply` right away (needs root)")
     a.set_defaults(func=cmd_share_add)
+    st = sh.add_parser("set", help="change an existing share")
+    st.add_argument("name")
+    st.add_argument("--allow-run", dest="allow_run", action="store_true", default=None,
+                    help="let Windows run programs (.exe/.msi) from this share")
+    st.add_argument("--no-allow-run", dest="allow_run", action="store_false", help="stop allowing that")
+    st.add_argument("--apply", action="store_true", help="also run `setup --apply` right away (needs root)")
+    st.set_defaults(func=cmd_share_set)
     rm = sh.add_parser("remove", help="stop sharing a folder")
     rm.add_argument("name")
     rm.add_argument("--apply", action="store_true", help="also run `setup --apply` right away (needs root)")

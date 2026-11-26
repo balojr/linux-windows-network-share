@@ -57,6 +57,9 @@ def _render_share(s: Share) -> str:
         "   guest ok = no",
         f"   valid users = {' '.join(s.users)}",
     ]
+    if s.allow_run:
+        # Samba 4 refuses an "open for execute" unless the file has the Unix x bit; this lifts that for the share.
+        lines.append("   acl allow execute always = yes")
     if s.read_only:
         lines.append("   read only = yes")
     else:

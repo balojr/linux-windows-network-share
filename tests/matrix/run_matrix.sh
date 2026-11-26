@@ -9,7 +9,7 @@ IMAGES=("$@"); [ ${#IMAGES[@]} -eq 0 ] && IMAGES=(debian:stable-slim ubuntu:24.0
 bootstrap() { case "$1" in
   debian*|ubuntu*) echo "printf '#!/bin/sh\nexit 101\n' >/usr/sbin/policy-rc.d; chmod +x /usr/sbin/policy-rc.d; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 >/dev/null" ;;
   fedora*|rocky*|alma*) echo "command -v python3 >/dev/null || dnf install -y -q python3" ;;
-  archlinux*) echo "pacman -Sy --noconfirm python >/dev/null" ;;
+  archlinux*) echo "pacman -Syu --noconfirm python >/dev/null" ;;
   opensuse*) echo "zypper --non-interactive refresh >/dev/null && zypper --non-interactive install python3 >/dev/null" ;;
 esac; }
 

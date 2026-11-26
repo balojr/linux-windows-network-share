@@ -108,7 +108,9 @@ if which("testparm"):
     report("INFO", f"container LAN interfaces: {[i.name for i in lan]}")
     os.makedirs("/srv/test", exist_ok=True)
     cfg = config.Config()
+    os.makedirs("/srv/tools", exist_ok=True)
     cfg.add_share(config.Share("test", "/srv/test", ["root"], read_only=False))
+    cfg.add_share(config.Share("tools", "/srv/tools", ["root"], allow_run=True))
     os.makedirs("/etc/samba", exist_ok=True)
     smb_conf_existed = os.path.exists("/etc/samba/smb.conf")
     report("INFO", f"distro ships /etc/samba/smb.conf: {smb_conf_existed}")
@@ -127,6 +129,11 @@ if which("testparm"):
     full = sh(["testparm", "-s", "--suppress-prompt"]).stdout
     # distro-shipped shares (printers etc.) must not have lost the global hosts restriction semantics
     check("[test]" in full, "our [test] share is present in the effective config")
+    # the per-share "run programs" option: this distro's real Samba must accept it, and only on the share that asked
+    sections = {blk.split("]")[0].lstrip("["): blk for blk in full.split("\n[")[1:]}
+    tools_sec, test_sec = sections.get("tools", ""), sections.get("test", "")
+    check("acl allow execute always = Yes" in tools_sec, "real testparm accepts `acl allow execute always` on the share that asked")
+    check("acl allow execute always" not in test_sec, "...and it is absent from shares that did not ask")
     report("INFO", "shares present: " + ", ".join(ln.strip("[]") for ln in full.splitlines() if ln.startswith("[")))
 
 # --- 5. SELinux tooling name (only meaningful on fedora family) --------------------
