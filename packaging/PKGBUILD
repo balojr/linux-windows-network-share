@@ -1,6 +1,6 @@
 # Maintainer: lan-share contributors
 pkgname=lan-share
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Show this machine in Windows' Network tab and mount Windows shares"
 arch=('any')

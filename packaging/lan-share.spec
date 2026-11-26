@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 Name:           lan-share
-Version:        0.1.0
+Version:        0.2.0
 Release:        1
 Summary:        Show this machine in Windows' Network tab and mount Windows shares
 License:        MIT
@@ -36,5 +36,8 @@ DESTDIR=%{buildroot} PREFIX=/usr ./packaging/install.sh install
 %license LICENSE
 
 %changelog
+* Thu Nov 26 2026 lan-share contributors <noreply@example.invalid> - 0.2.0-1
+- Add the per-share option that lets Windows run programs (share add --allow-run, share set)
+
 * Thu Nov 05 2026 lan-share contributors <noreply@example.invalid> - 0.1.0-1
 - Initial package

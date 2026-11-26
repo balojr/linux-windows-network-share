@@ -48,7 +48,7 @@ Windows 10/11 no longer discovers Linux machines by itself (SMB1/NetBIOS browsin
 
 ```bash
 # 1. install (see "Install" for rpm / Arch / other)
-sudo apt install ./lan-share_0.1.0_all.deb
+sudo apt install ./lan-share_*_all.deb
 
 # 2. share a folder with a Windows PC
 lan-share share add photos ~/Photos --user "$USER" --rw   # needs root to save; or use the GUI
