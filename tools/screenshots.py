@@ -33,8 +33,9 @@ class DemoBackend:
         ])
 
     def shares(self):
-        return [{"name": "photos", "path": "/home/alice/Photos", "users": ["alice"], "read_only": False},
-                {"name": "documents", "path": "/home/alice/Documents", "users": ["alice", "bob"], "read_only": True}]
+        return [{"name": "photos", "path": "/home/alice/Photos", "users": ["alice"], "read_only": False, "allow_run": False},
+                {"name": "documents", "path": "/home/alice/Documents", "users": ["alice", "bob"], "read_only": True, "allow_run": False},
+                {"name": "installers", "path": "/home/alice/Installers", "users": ["alice"], "read_only": False, "allow_run": True}]
 
     def mounts(self):
         return [{"name": "office-projects", "host": "192.168.1.50", "share": "Projects", "user": "alice", "local_user": "alice",

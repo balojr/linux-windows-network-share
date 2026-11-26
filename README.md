@@ -121,7 +121,8 @@ The `.deb` and `.rpm` list the GUI libraries as *recommended* packages. Arch lis
 | Command | What it does |
 |---|---|
 | `lan-share detect` | Distribution, what is installed, LAN interfaces found |
-| `lan-share share add NAME PATH --user U [--user U2] [--rw] [--apply]` | Add a shared folder (read-only unless `--rw`); `--apply` also runs `setup` |
+| `lan-share share add NAME PATH --user U [--user U2] [--rw] [--allow-run] [--apply]` | Add a shared folder (read-only unless `--rw`; `--allow-run` lets Windows run programs from it, see below); `--apply` also runs `setup` |
+| `lan-share share set NAME --allow-run` / `--no-allow-run` [`--apply`] | Change an existing share |
 | `lan-share share list` / `share remove NAME [--apply]` | List / remove shared folders |
 | `lan-share setup [--apply] [--interface IF] [--zone Z] [--allow-untrusted-zone]` | Install and configure everything for the saved shares |
 | `lan-share user add NAME` | Set the Samba password for an existing Linux user (Samba keeps its own password database) |
@@ -139,11 +140,24 @@ Notes:
 - Use the PC's **IP address** for mounts; Windows computer names often don't resolve on Linux. If the IP changes, `scan` finds it again.
 - `--root DIR` stages file writes into a scratch directory and skips all commands — handy for reviewing what `setup` would write.
 
+### Running programs from a share
+
+By default Windows can **read** the files in a share but not **run** programs from it. If you double-click an installer or `.exe` on the share, Windows says you don't have permission to access it. That is deliberate Samba behaviour: Windows asks to *open the file for execution*, and Samba grants that only when the file has Linux's execute bit. Files saved by a browser or copied in never have it, so every `.exe` and `.msi` hits the error even though the same user can read and copy them.
+
+Two ways to fix it:
+
+- **For the whole share** (recommended when you do this regularly): `sudo lan-share share set NAME --allow-run --apply`, or tick *Allow running programs* when adding a folder in the app, or flip the switch next to an existing share. Undo with `--no-allow-run`.
+- **For one file**: `chmod u+x file.exe` on the Linux side. Nothing else changes.
+
+What the option does: it sets Samba's `acl allow execute always = yes` on that share only. Samba never runs anything itself, so nothing executes on Linux. It only lets Windows run the files. Enable it for folders you trust, and be careful if other people or programs can write into the folder, since Windows could then run whatever is dropped there. It is off by default.
+
+Not related to this: Windows may still show its own *"Open File - Security Warning"* or SmartScreen prompt when running a program from a network location. That is normal; check the publisher before choosing *Run*.
+
 ### Graphical app
 
 `lan-share gui`, or **LAN Share** in your application menu. Three tabs:
 
-- **Share** — add a folder (pick it, name it, choose who may open it and whether they may change files), remove it, and set the Samba password (key icon).
+- **Share** — add a folder (pick it, name it, choose who may open it, whether they may change files, and whether Windows may run programs from it), remove it, set the Samba password (key icon), or flip the *run programs* switch on an existing share.
 - **Windows PCs** — **Scan**, pick a computer, sign in, choose one of its folders, **Connect**; later **Open** or disconnect it.
 - **Health** — the `doctor` checks, problems first. **Full check** also runs the checks that need administrator rights.
 
@@ -221,7 +235,7 @@ Stated plainly, because "runs on all distros" is a claim that needs evidence.
 - The bundled wsdd starts and joins the WS-Discovery multicast group on Python 3.9 through 3.15, with the same arguments the systemd unit uses (including the chroot).
 - The `.deb`, `.rpm` and Arch package install through each distribution's package manager, pull in dependencies, run (`--version`, `detect`, `setup` and `teardown` dry runs, `doctor`, the privileged helper and its refusals), and uninstall leaving nothing behind.
 
-**Unit and GUI tests:** 75 tests (`make test`), including the real GTK window driven headlessly against a fake backend. Security-relevant tests were checked by deliberately breaking the code (e.g. letting the helper accept `--root`, making the policy permissive, trusting the caller's environment) and confirming a test fails.
+**Unit and GUI tests:** 81 tests (`make test`), including the real GTK window driven headlessly against a fake backend. Security-relevant tests were checked by deliberately breaking the code (e.g. letting the helper accept `--root`, making the policy permissive, trusting the caller's environment) and confirming a test fails.
 
 **Not tested — please read:**
 - Containers have no systemd, real firewall or real Windows PC. Service startup, firewall rules and Network-tab visibility were **only verified end to end on the Fedora laptop**. Other distributions are verified up to "installs, configures correctly, and the pieces run".
@@ -237,6 +251,7 @@ Start with `lan-share doctor` (add `sudo` for the root-only checks). Common caus
 |---|---|---|
 | Computer missing from the Network tab, but `\\ip\share` works | Windows network profile is Public, or Network discovery is off | [Windows checklist](#windows-side-checklist) |
 | Not in the Network tab, `\\ip\share` doesn't work either | Firewall blocking, or Samba not running | `doctor` reports which; `sudo lan-share setup --apply` re-applies |
+| Windows says "you do not have permission" when you double-click an `.exe`/`.msi` on the share, though you can open other files | Samba needs the Linux execute bit to let Windows run a file | `sudo lan-share share set NAME --allow-run --apply`, or `chmod u+x file` ([details](#running-programs-from-a-share)) |
 | Windows asks for a password and rejects it | The Samba password is separate from the Linux login password | `sudo lan-share user add <name>` |
 | "Access denied" although the password is right | SELinux label missing on the folder | `doctor` shows it; `setup --apply` relabels |
 | `mount add` says login works but share not found | Wrong share name | `lan-share shares HOST --user U` lists the real names |
@@ -260,7 +275,7 @@ sudo apt remove lan-share          # or: dnf remove / pacman -R / zypper remove 
 git clone https://github.com/balojr/linux-windows-network-share.git && cd linux-windows-network-share
 export PYTHONPATH=src
 python3 -m lan_share detect            # run from the checkout, no install
-python3 -m unittest discover -s tests  # 75 tests (GUI tests need GTK 4 + libadwaita + gtk4-broadwayd; they skip otherwise)
+python3 -m unittest discover -s tests  # 81 tests (GUI tests need GTK 4 + libadwaita + gtk4-broadwayd; they skip otherwise)
 ```
 
 | Path | Contents |
